@@ -2,10 +2,14 @@
 
 namespace PHLAK\SemVer;
 
+use PHLAK\SemVer\Traits\Comparable;
+use PHLAK\SemVer\Traits\Incrementable;
 use PHLAK\SemVer\Exceptions\InvalidVersionException;
 
 class Version
 {
+    use Comparable, Incrementable;
+
     /** @var int Major release number */
     protected $major;
 
@@ -18,7 +22,7 @@ class Version
     /** @var string|null Pre-release value */
     protected $preRelease;
 
-    /** @var string Build release value */
+    /** @var string|null Build release value */
     protected $build;
 
     /**
@@ -26,7 +30,7 @@ class Version
      *
      * @param string $version Version string
      */
-    public function __construct($version = '0.1.0')
+    public function __construct(string $version = '0.1.0')
     {
         $this->setVersion($version);
     }
@@ -38,7 +42,7 @@ class Version
      *
      * @return mixed Version property value
      */
-    public function __get($property)
+    public function __get(string $property)
     {
         return $this->$property;
     }
@@ -46,14 +50,15 @@ class Version
     /**
      * Magic toString method; allows object interaction as if it were a string.
      *
-     * @param string $prefix Prefix the version string with a custom string
-     *                       (default: 'v')
-     *
      * @return string Current version string
      */
-    public function __toString()
+    public function __toString() : string
     {
-        return $this->toString();
+        $version = implode('.', [$this->major, $this->minor, $this->patch]);
+        $version .= isset($this->preRelease) ? '-' . $this->preRelease : null;
+        $version .= isset($this->build) ? '+' . $this->build : null;
+
+        return $version;
     }
 
     /**
@@ -61,11 +66,11 @@ class Version
      *
      * @param string $version Version string
      *
-     * @return Version This Version object
+     * @return self This Version object
      */
-    public function setVersion($version)
+    public function setVersion(string $version) : self
     {
-        $semverRegex = '/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Z-.]+))?(?:\+([0-9A-Z-.]+)?)?$/i';
+        $semverRegex = '/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-.]+))?(?:\+([0-9A-Za-z-.]+)?)?$/';
 
         if (! preg_match($semverRegex, $version, $matches)) {
             throw new InvalidVersionException('Invalid Semantic Version string provided');
@@ -74,20 +79,8 @@ class Version
         $this->major = (int) $matches[1];
         $this->minor = (int) $matches[2];
         $this->patch = (int) $matches[3];
-        $this->preRelease = @$matches[4] ?: null;
-        $this->build = @$matches[5] ?: null;
-
-        return $this;
-    }
-
-    /**
-     * Increment the major version value by one.
-     *
-     * @return Version This Version object
-     */
-    public function incrementMajor()
-    {
-        $this->setMajor($this->major + 1);
+        $this->preRelease = $matches[4] ?? null;
+        $this->build = $matches[5] ?? null;
 
         return $this;
     }
@@ -97,26 +90,15 @@ class Version
      *
      * @param int $value Positive integer value
      *
-     * @return Version This Version object
+     * @return self This Version object
      */
-    public function setMajor($value)
+    public function setMajor(int $value) : self
     {
         $this->major = $value;
         $this->minor = 0;
         $this->patch = 0;
         $this->preRelease = null;
-
-        return $this;
-    }
-
-    /**
-     * Increment the minor version value by one.
-     *
-     * @return Version This Version object
-     */
-    public function incrementMinor()
-    {
-        $this->setMinor($this->minor + 1);
+        $this->build = null;
 
         return $this;
     }
@@ -126,25 +108,14 @@ class Version
      *
      * @param int $value Positive integer value
      *
-     * @return Version This Version object
+     * @return self This Version object
      */
-    public function setMinor($value)
+    public function setMinor(int $value) : self
     {
         $this->minor = $value;
         $this->patch = 0;
         $this->preRelease = null;
-
-        return $this;
-    }
-
-    /**
-     * Increment the patch version value by one.
-     *
-     * @return Version This Version object
-     */
-    public function incrementPatch()
-    {
-        $this->setPatch($this->patch + 1);
+        $this->build = null;
 
         return $this;
     }
@@ -154,12 +125,13 @@ class Version
      *
      * @param int $value Positive integer value
      *
-     * @return Version This Version object
+     * @return self This Version object
      */
-    public function setPatch($value)
+    public function setPatch(int $value) : self
     {
         $this->patch = $value;
         $this->preRelease = null;
+        $this->build = null;
 
         return $this;
     }
@@ -167,11 +139,11 @@ class Version
     /**
      * Set the pre-release string to a custom value.
      *
-     * @param string $value A new pre-release value
+     * @param string|null $value A new pre-release value
      *
-     * @return Version This Version object
+     * @return self This Version object
      */
-    public function setPreRelease($value)
+    public function setPreRelease($value) : self
     {
         $this->preRelease = $value;
 
@@ -181,131 +153,15 @@ class Version
     /**
      * Set the build string to a custom value.
      *
-     * @param string $value A new build value
+     * @param string|null $value A new build value
      *
-     * @return Version This Version object
+     * @return self This Version object
      */
-    public function setBuild($value)
+    public function setBuild($value) : self
     {
         $this->build = $value;
 
         return $this;
-    }
-
-    /**
-     * Check if this Version object is greater than another.
-     *
-     * @param Version $version An instance of SemVer/Version
-     *
-     * @return bool True if this Version object is greater than the comparing
-     *              object, otherwise false
-     */
-    public function gt(Version $version)
-    {
-        if ($this->major > $version->major) {
-            return true;
-        }
-
-        if ($this->major == $version->major
-            && $this->minor > $version->minor
-        ) {
-            return true;
-        }
-
-        if ($this->major == $version->major
-            && $this->minor == $version->minor
-            && $this->patch > $version->patch
-        ) {
-            return true;
-        }
-
-        // TODO: Check pre-release tag
-
-        return false;
-    }
-
-    /**
-     * Check if this Version object is less than another.
-     *
-     * @param Version $version An instance of SemVer/Version
-     *
-     * @return bool True if this Version object is less than the comparing
-     *              object, otherwise false
-     */
-    public function lt(Version $version)
-    {
-        if ($this->major < $version->major) {
-            return true;
-        }
-
-        if ($this->major == $version->major
-            && $this->minor < $version->minor
-        ) {
-            return true;
-        }
-
-        if ($this->major == $version->major
-            && $this->minor == $version->minor
-            && $this->patch < $version->patch
-        ) {
-            return true;
-        }
-
-        // TODO: Check pre-release tag
-
-        return false;
-    }
-
-    /**
-     * Check if this Version object is equal to than another.
-     *
-     * @param Version $version An instance of SemVer/Version
-     *
-     * @return bool True if this Version object is equal to the comparing
-     *              object, otherwise false
-     */
-    public function eq(Version $version)
-    {
-        return $this == $version;
-    }
-
-    /**
-     * Check if this Version object is not equal to another.
-     *
-     * @param Version $version An instance of SemVer/Version
-     *
-     * @return bool True if this Version object is not equal to the comparing
-     *              object, otherwise false
-     */
-    public function neq(Version $version)
-    {
-        return $this != $version;
-    }
-
-    /**
-     * Check if this Version object is greater than or equal to another.
-     *
-     * @param Version $version An instance of SemVer/Version
-     *
-     * @return bool True if this Version object is greater than or equal to the
-     *              comparing object, otherwise false
-     */
-    public function gte(Version $version)
-    {
-        return $this->gt($version) || $this->eq($version);
-    }
-
-    /**
-     * Check if this Version object is less than or equal to another.
-     *
-     * @param Version $version An instance of SemVer/Version
-     *
-     * @return bool True if this Version object is less than or equal to the
-     *              comparing object, otherwise false
-     */
-    public function lte(Version $version)
-    {
-        return $this->lt($version) || $this->eq($version);
     }
 
     /**
@@ -316,7 +172,7 @@ class Version
      *
      * @return string Prefixed version string
      */
-    public function prefix($prefix = 'v')
+    public function prefix($prefix = 'v') : string
     {
         return $prefix . $this->toString();
     }
@@ -326,12 +182,8 @@ class Version
      *
      * @return string Current version string
      */
-    private function toString()
+    private function toString() : string
     {
-        $version = implode('.', [$this->major, $this->minor, $this->patch]);
-        $version .= isset($this->preRelease) ? '-' . $this->preRelease : null;
-        $version .= isset($this->build) ? '+' . $this->build : null;
-
-        return $version;
+        return (string) $this;
     }
 }
